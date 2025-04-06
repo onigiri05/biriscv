@@ -59,11 +59,15 @@ module biriscv_regfile
 generate
 if (SUPPORT_REGFILE_XILINX && SUPPORT_DUAL_ISSUE)
 begin: REGFILE_XILINX
-    wire [31:0] ra0_value_w[1:0];
+	wire [31:0] ra0_value_w[1:0];
     wire [31:0] rb0_value_w[1:0];
-    wire [31:0] ra1_value_w[1:0];
+	wire [31:0] ra1_value_w[1:0];
     wire [31:0] rb1_value_w[1:0];
-
+	
+	/*
+	rd0會寫入u_a_0、u_b_0
+	rd1會寫入u_a_1、u_b_1
+	*/
     biriscv_xilinx_2r1w
     u_a_0
     (
@@ -95,7 +99,7 @@ begin: REGFILE_XILINX
         ,.ra_value_o(ra0_value_w[1])
         ,.rb_value_o(rb0_value_w[1])
     );
-
+	
     biriscv_xilinx_2r1w
     u_b_0
     (
@@ -128,7 +132,10 @@ begin: REGFILE_XILINX
         ,.rb_value_o(rb1_value_w[1])
     );
 
-    // Track latest register write 
+    // Track latest register write
+	/*	用來辨別各reg最近一次的寫入是經rd0還是rd1. 
+		reg_src_q[i]=0表示最近一次寫入reg i的為rd0; 
+		reg_src_q[i]=1 表示最近一次寫入reg i的為rd1  */
     reg [31:0] reg_src_q;
     reg [31:0] reg_src_r;
 
@@ -148,8 +155,19 @@ begin: REGFILE_XILINX
         reg_src_q <= 32'b0;
     else
         reg_src_q <= reg_src_r;
-
-
+		
+	/*
+	path 0的rs:
+		ra0最近一次是rd1寫的 => 讀reg[i]時讀取u_a_1
+		ra0最近一次是rd0寫的 => 讀reg[i]時讀取u_a_0
+		rb0最近一次是rd1寫的 => 讀reg[i]時讀取u_a_1
+		rb0最近一次是rd0寫的 => 讀reg[i]時讀取u_a_0
+	path 1的rs:
+		ra1最近一次是rd1寫的 => 讀reg[i]時讀取u_b_1
+		ra1最近一次是rd0寫的 => 讀reg[i]時讀取u_b_0
+		rb1最近一次是rd1寫的 => 讀reg[i]時讀取u_b_1
+		rb1最近一次是rd0寫的 => 讀reg[i]時讀取u_b_0
+	*/
     assign ra0_value_o = reg_src_q[ra0_i] ? ra0_value_w[1] : ra0_value_w[0];
     assign rb0_value_o = reg_src_q[rb0_i] ? rb0_value_w[1] : rb0_value_w[0];
     assign ra1_value_o = reg_src_q[ra1_i] ? ra1_value_w[1] : ra1_value_w[0];
@@ -292,7 +310,7 @@ begin: REGFILE
         reg_r31_q      <= 32'h00000000;
     end
     else
-    begin
+    begin 	// if rd0 & rd1 both need to write the same reg, rd0 will take priority
         if      (rd0_i == 5'd1) reg_r1_q <= rd0_value_i;
         else if (rd1_i == 5'd1) reg_r1_q <= rd1_value_i;
         if      (rd0_i == 5'd2) reg_r2_q <= rd0_value_i;
